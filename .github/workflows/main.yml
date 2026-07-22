@@ -42,11 +42,27 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
-          cache: gradle
+
+      - name: Validate Android Gradle project
+        shell: bash
+        run: |
+          if [ ! -f ./gradlew ]; then
+            echo '::error::No ./gradlew found. This workflow must run at the repository root of an Android Gradle project.'
+            echo 'Expected: gradlew, gradle/wrapper/gradle-wrapper.properties, and at least one build.gradle(.kts).'
+            exit 1
+          fi
+          chmod +x ./gradlew
+          if ! find . -type f \( -name 'build.gradle' -o -name 'build.gradle.kts' \) -print -quit | grep -q .; then
+            echo '::error::No build.gradle or build.gradle.kts found.'
+            exit 1
+          fi
+
+      - name: Set up Gradle without fragile setup-java cache lookup
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Enable KVM hardware acceleration
         shell: bash
@@ -93,7 +109,6 @@ jobs:
             adb shell settings put global transition_animation_scale 0
             adb shell settings put global animator_duration_scale 0
             adb shell input keyevent 82 || true
-            chmod +x ./gradlew
             ./gradlew --no-daemon --stacktrace connectedCheck
             if [ "$KEEP_ALIVE_MINUTES" -gt 0 ]; then
               echo "Keeping emulator alive for ${KEEP_ALIVE_MINUTES} minutes."
